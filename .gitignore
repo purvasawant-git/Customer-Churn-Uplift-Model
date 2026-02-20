@@ -1,0 +1,27 @@
+# Python / virtual environments
+venv/
+.env
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Data (we don't commit raw or processed data to git)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Windows / macOS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.sublime-workspace
