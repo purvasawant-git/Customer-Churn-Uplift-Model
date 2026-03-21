@@ -12,10 +12,12 @@ import warnings
 warnings.filterwarnings('ignore')
 
 st.set_page_config(layout="wide", page_title="Churn Uplift Dashboard")
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv('../data/processed/telco_churn_uplift_ready.csv')
+    df = pd.read_csv(os.path.join(BASE_DIR, 'data', 'processed', 'telco_churn_uplift_ready.csv'))
     if 'customerID' in df.columns:
         df = df.drop('customerID', axis=1)
     return df
