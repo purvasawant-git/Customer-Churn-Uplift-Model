@@ -154,7 +154,7 @@ with tab1:
     df_display['churn_risk'] = df_display['churn_risk'].round(1).astype(str) + '%'
     df_display['uplift_score'] = df_display['uplift_score'].round(4)
     styled_df = df_display.style.format({'churn_risk': str, 'uplift_score': '{:.4f}'})
-    styled_df = styled_df.map(style_segment, subset=['segment'])
+    styled_df = styled_df.applymap(style_segment, subset=['segment'])
     st.dataframe(styled_df, use_container_width=True)
     
     seg_counts = filtered_df['segment'].value_counts()
