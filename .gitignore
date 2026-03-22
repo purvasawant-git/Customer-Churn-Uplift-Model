@@ -11,8 +11,9 @@ __pycache__/
 *.ipynb_checkpoints/
 
 # Data (we don't commit raw or processed data to git)
-data/raw/*
-data/processed/*
+data/raw/*.csv
+!data/raw/processed/telco_churn_uplift_ready.csv
+!data/raw/processed/telco_churn_clean_v2.csv
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
