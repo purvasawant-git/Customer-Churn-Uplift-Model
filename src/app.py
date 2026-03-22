@@ -3,9 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import xgboost as xgb
-import shap
 import joblib
 import os
 import warnings
@@ -15,24 +12,18 @@ st.set_page_config(layout="wide", page_title="Churn Uplift Dashboard")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_PATH = os.path.join(BASE_DIR, 'data', 'processed', 'telco_churn_uplift_ready.csv')
+MODELS_DIR = os.path.join(BASE_DIR, 'models')
+
 
 @st.cache_data
-def load_data():
-    # Fix: correct path is data/raw/processed/
-    path = DATA_PATH
-    df = pd.read_csv(path)
+def load_and_score_data():
+    df = pd.read_csv(DATA_PATH)
     if 'customerID' in df.columns:
         df = df.drop('customerID', axis=1)
-    return df
 
-@st.cache_resource
-def load_models():
-    df = load_data()
-
-    # Feature prep — encode first
     drop_cols = ['Churn', 'persuadability', 'persuadability_bin',
                  'contract_score', 'tenure_norm', 'charge_norm']
-    available_drop = [col for col in drop_cols if col in df.columns]
+    available_drop = [c for c in drop_cols if c in df.columns]
     df_features = df.drop(columns=available_drop)
     object_cols = df_features.select_dtypes(include='object').columns
     df_encoded = pd.get_dummies(df_features, columns=object_cols, drop_first=True)
@@ -41,64 +32,23 @@ def load_models():
                           .str.replace('-', '_')
                           .str.replace('(', '')
                           .str.replace(')', ''))
-    feature_cols = [col for col in df_encoded.columns
-                    if col not in ['treatment', 'churn_observed']]
-    X        = df_encoded[feature_cols]
-    y_churn  = df_encoded['churn_observed']
-    treatment = df_encoded['treatment']
 
-    # Try loading uplift models from joblib
-    models_dir      = os.path.join(BASE_DIR, 'models')
-    treated_path    = os.path.join(models_dir, 'xgb_treated.pkl')
-    control_path    = os.path.join(models_dir, 'xgb_control.pkl')
+    feature_cols = [c for c in df_encoded.columns
+                    if c not in ['treatment', 'churn_observed']]
+    X = df_encoded[feature_cols]
 
-    if os.path.exists(treated_path) and os.path.exists(control_path):
-        xgb_treated = joblib.load(treated_path)
-        xgb_control = joblib.load(control_path)
-    else:
-        st.warning("Uplift models not found — training now (~30 seconds)...")
-        from sklearn.model_selection import train_test_split
-        X_train, _, y_train, _, tr_train, _ = train_test_split(
-            X, y_churn, treatment, test_size=0.2, stratify=y_churn, random_state=42
-        )
-        xgb_treated = xgb.XGBClassifier(n_estimators=200, max_depth=4,
-                                          learning_rate=0.05, eval_metric='logloss',
-                                          random_state=42)
-        xgb_treated.fit(X_train[tr_train == 1], y_train[tr_train == 1])
-        xgb_control = xgb.XGBClassifier(n_estimators=200, max_depth=4,
-                                          learning_rate=0.05, eval_metric='logloss',
-                                          random_state=42)
-        xgb_control.fit(X_train[tr_train == 0], y_train[tr_train == 0])
+    churn_xgb   = joblib.load(os.path.join(MODELS_DIR, 'churn_xgb.pkl'))
+    xgb_treated = joblib.load(os.path.join(MODELS_DIR, 'xgb_treated.pkl'))
+    xgb_control = joblib.load(os.path.join(MODELS_DIR, 'xgb_control.pkl'))
 
-    # Load or train churn model
-    churn_path = os.path.join(models_dir, 'churn_xgb.pkl')
-    if os.path.exists(churn_path):
-        churn_xgb = joblib.load(churn_path)
-    else:
-        churn_xgb = xgb.XGBClassifier(n_estimators=200, max_depth=4,
-                                        learning_rate=0.05, eval_metric='logloss',
-                                        random_state=42)
-        churn_xgb.fit(X, y_churn)
+    df['churn_risk']   = churn_xgb.predict_proba(X)[:, 1] * 100
+    df['uplift_score'] = xgb_control.predict_proba(X)[:, 1] - xgb_treated.predict_proba(X)[:, 1]
 
-    # Predictions
-    churn_pred = churn_xgb.predict_proba(X)[:, 1]
-    p_control  = xgb_control.predict_proba(X)[:, 1]
-    p_treated  = xgb_treated.predict_proba(X)[:, 1]
-    uplift     = p_control - p_treated
-
-    # Feature importance
     importance   = churn_xgb.feature_importances_
     top_features = pd.Series(importance, index=feature_cols).nlargest(10)
 
-    return {
-        'churn_xgb':   churn_xgb,
-        'xgb_treated': xgb_treated,
-        'xgb_control': xgb_control,
-        'X':           X,
-        'uplift':      uplift,
-        'churn_pred':  churn_pred,
-        'shap_top':    top_features
-    }
+    return df, top_features
+
 
 def get_segment(uplift):
     if uplift < -0.05:
@@ -110,6 +60,7 @@ def get_segment(uplift):
     else:
         return 'Sure Thing'
 
+
 def style_segment(val):
     colors = {
         'Sleeping Dog': '#ffcccc',
@@ -119,14 +70,13 @@ def style_segment(val):
     }
     return f'background-color: {colors.get(val, "white")}'
 
+
 st.title("Telco Churn & Uplift Intelligence Dashboard")
 
-df      = load_data()
-models  = load_models()
+with st.spinner("Loading models and scoring customers..."):
+    df, top_features = load_and_score_data()
 
-df['churn_risk']   = models['churn_pred'] * 100
-df['uplift_score'] = models['uplift']
-df['segment']      = df['uplift_score'].apply(get_segment)
+df['segment'] = df['uplift_score'].apply(get_segment)
 
 # Sidebar
 st.sidebar.header("Filters")
@@ -159,7 +109,7 @@ with col2:
 with col3:
     st.metric("Avg Uplift Score", f"{filtered_df['uplift_score'].mean():.4f}")
 with col4:
-    n_target  = int(n_total * target_thresh)
+    n_target   = int(n_total * target_thresh)
     top_uplift = filtered_df.nlargest(n_target, 'uplift_score')['uplift_score'].sum()
     camp_cost  = n_target * offer_cost
     profit     = top_uplift * margin_retained - camp_cost
@@ -167,7 +117,7 @@ with col4:
     st.metric("Expected ROI", f"{roi_pct:.1f}%")
 
 # Tabs
-tab1, tab2, tab3 = st.tabs(["Customer Intelligence", "ROI Simulator", "SHAP Analysis"])
+tab1, tab2, tab3 = st.tabs(["Customer Intelligence", "ROI Simulator", "Feature Importance"])
 
 with tab1:
     display_cols = ['tenure', 'MonthlyCharges', 'Contract',
@@ -190,10 +140,10 @@ with tab2:
     thresholds = np.linspace(0.05, 0.5, 46)
     rois = []
     for thresh in thresholds:
-        n_t      = int(n_total * thresh)
-        top_u    = filtered_df.nlargest(n_t, 'uplift_score')['uplift_score'].sum()
-        cost     = n_t * offer_cost
-        roi      = ((top_u * margin_retained - cost) / cost * 100) if cost > 0 else 0
+        n_t   = int(n_total * thresh)
+        top_u = filtered_df.nlargest(n_t, 'uplift_score')['uplift_score'].sum()
+        cost  = n_t * offer_cost
+        roi   = ((top_u * margin_retained - cost) / cost * 100) if cost > 0 else 0
         rois.append(roi)
 
     fig_roi = go.Figure()
@@ -204,9 +154,6 @@ with tab2:
     fig_roi.update_layout(title="ROI % vs Targeting Threshold",
                           xaxis_title="Top % by Uplift", yaxis_title="ROI %")
     st.plotly_chart(fig_roi, use_container_width=True)
-
-    for strength in [0.5, 1.0, 1.5]:
-        pass  # sensitivity already in fig_roi context
 
     fig_sens = go.Figure()
     for strength in [0.5, 1.0, 1.5]:
@@ -224,10 +171,10 @@ with tab2:
                            xaxis_title="Top % by Uplift", yaxis_title="ROI %")
     st.plotly_chart(fig_sens, use_container_width=True)
 
-    n_targeted  = int(n_total * target_thresh)
-    top_c       = filtered_df.nlargest(n_targeted, 'uplift_score')
-    exp_profit  = top_c['uplift_score'].sum() * margin_retained - n_targeted * offer_cost
-    c1, c2, c3  = st.columns(3)
+    n_targeted = int(n_total * target_thresh)
+    top_c      = filtered_df.nlargest(n_targeted, 'uplift_score')
+    exp_profit = top_c['uplift_score'].sum() * margin_retained - n_targeted * offer_cost
+    c1, c2, c3 = st.columns(3)
     with c1:
         st.metric("Targeted Customers", n_targeted)
     with c2:
@@ -236,10 +183,9 @@ with tab2:
         st.metric("Expected Profit", f"Rs {exp_profit:,.0f}")
 
 with tab3:
-    fig_shap = px.bar(x=models['shap_top'].values, y=models['shap_top'].index,
+    fig_feat = px.bar(x=top_features.values, y=top_features.index,
                       orientation='h',
-                      title="Top 10 SHAP Feature Importance (Mean |SHAP|)")
-    fig_shap.update_layout(yaxis_title="Feature", xaxis_title="Mean |SHAP value|")
-    st.plotly_chart(fig_shap, use_container_width=True)
-    st.markdown("Features with high SHAP values drive churn predictions most strongly.")
-
+                      title="Top 10 Feature Importance (XGBoost)")
+    fig_feat.update_layout(yaxis_title="Feature", xaxis_title="Importance Score")
+    st.plotly_chart(fig_feat, use_container_width=True)
+    st.markdown("Features with high importance scores drive churn predictions most strongly.")
