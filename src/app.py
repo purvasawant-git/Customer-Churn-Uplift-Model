@@ -86,12 +86,9 @@ def load_models():
     p_treated  = xgb_treated.predict_proba(X)[:, 1]
     uplift     = p_control - p_treated
 
-    # SHAP
-    sample_X     = X.sample(min(1000, len(X)), random_state=42)
-    explainer    = shap.TreeExplainer(churn_xgb.get_booster())
-    shap_vals    = explainer.shap_values(sample_X)
-    shap_mean    = np.abs(shap_vals).mean(0)
-    top_features = pd.Series(shap_mean, index=feature_cols).nlargest(10)
+    # Feature importance
+    importance   = churn_xgb.feature_importances_
+    top_features = pd.Series(importance, index=feature_cols).nlargest(10)
 
     return {
         'churn_xgb':   churn_xgb,
