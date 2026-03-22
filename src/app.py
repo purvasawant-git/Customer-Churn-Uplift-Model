@@ -88,8 +88,8 @@ def load_models():
 
     # SHAP
     sample_X     = X.sample(min(1000, len(X)), random_state=42)
-    explainer    = shap.Explainer(churn_xgb, sample_X)
-    shap_vals    = explainer(sample_X).values
+    explainer    = shap.TreeExplainer(churn_xgb.get_booster())
+    shap_vals    = explainer.shap_values(sample_X)
     shap_mean    = np.abs(shap_vals).mean(0)
     top_features = pd.Series(shap_mean, index=feature_cols).nlargest(10)
 
