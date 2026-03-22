@@ -14,11 +14,12 @@ warnings.filterwarnings('ignore')
 st.set_page_config(layout="wide", page_title="Churn Uplift Dashboard")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_PATH = os.path.join(BASE_DIR, 'data', 'raw', 'processed', 'telco_churn_uplift_ready.csv')
 
 @st.cache_data
 def load_data():
     # Fix: correct path is data/raw/processed/
-    path = os.path.join(BASE_DIR, 'data', 'raw', 'processed', 'telco_churn_uplift_ready.csv')
+    path = DATA_PATH
     df = pd.read_csv(path)
     if 'customerID' in df.columns:
         df = df.drop('customerID', axis=1)
