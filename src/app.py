@@ -71,6 +71,10 @@ def load_models():
         xgb_control.fit(X_train[tr_train == 0], y_train[tr_train == 0])
 
     # Always train churn model fresh on encoded data (lightweight)
+    churn_path = os.path.join(models_dir, 'churn_xgb.pkl')
+if os.path.exists(churn_path):
+    churn_xgb = joblib.load(churn_path)
+else:
     churn_xgb = xgb.XGBClassifier(n_estimators=200, max_depth=4,
                                     learning_rate=0.05, eval_metric='logloss',
                                     random_state=42)
