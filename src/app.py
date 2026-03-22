@@ -14,7 +14,7 @@ warnings.filterwarnings('ignore')
 st.set_page_config(layout="wide", page_title="Churn Uplift Dashboard")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_PATH = os.path.join(BASE_DIR, 'data', 'raw', 'processed', 'telco_churn_uplift_ready.csv')
+DATA_PATH = os.path.join(BASE_DIR, 'data', 'processed', 'telco_churn_uplift_ready.csv')
 
 @st.cache_data
 def load_data():
