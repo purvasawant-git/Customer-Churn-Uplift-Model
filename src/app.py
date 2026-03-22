@@ -70,15 +70,15 @@ def load_models():
                                           random_state=42)
         xgb_control.fit(X_train[tr_train == 0], y_train[tr_train == 0])
 
-    # Always train churn model fresh on encoded data (lightweight)
+    # Load or train churn model
     churn_path = os.path.join(models_dir, 'churn_xgb.pkl')
-if os.path.exists(churn_path):
-    churn_xgb = joblib.load(churn_path)
-else:
-    churn_xgb = xgb.XGBClassifier(n_estimators=200, max_depth=4,
-                                    learning_rate=0.05, eval_metric='logloss',
-                                    random_state=42)
-    churn_xgb.fit(X, y_churn)
+    if os.path.exists(churn_path):
+        churn_xgb = joblib.load(churn_path)
+    else:
+        churn_xgb = xgb.XGBClassifier(n_estimators=200, max_depth=4,
+                                        learning_rate=0.05, eval_metric='logloss',
+                                        random_state=42)
+        churn_xgb.fit(X, y_churn)
 
     # Predictions
     churn_pred = churn_xgb.predict_proba(X)[:, 1]
@@ -244,3 +244,4 @@ with tab3:
     fig_shap.update_layout(yaxis_title="Feature", xaxis_title="Mean |SHAP value|")
     st.plotly_chart(fig_shap, use_container_width=True)
     st.markdown("Features with high SHAP values drive churn predictions most strongly.")
+
