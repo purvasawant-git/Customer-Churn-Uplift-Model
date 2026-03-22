@@ -1,7 +1,7 @@
 # Customer-Churn-Uplift-Model
 
 ## Live Demo
-🚀 [Launch Dashboard](https://customerchuningandupliftingbypurva.streamlit.app/)
+🚀 [Launch Dashboard](https://customerchurandupliftbypurva.streamlit.app/)
 
 End-to-end **customer churn + uplift modeling** on a Telco dataset: from EDA and feature engineering, through churn prediction, to causal uplift modeling and ROI analysis for retention campaigns.
 
